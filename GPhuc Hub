@@ -1,0 +1,215 @@
+-- LocalScript: GPhucHub_JumpGravity_ESP_FastHop.lua
+-- Đặt vào StarterPlayer -> StarterPlayerScripts
+
+local Players = game:GetService("Players")
+local RS = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+local Debris = game:GetService("Debris")
+local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local PlaceId = game.PlaceId
+
+local player = Players.LocalPlayer
+local char = player.Character or player.CharacterAdded:Wait()
+local hum = char:WaitForChild("Humanoid")
+local root = char:WaitForChild("HumanoidRootPart")
+
+-- ⚙️ Config
+local jumpEnabled = true
+local jumpPower = 60
+local gravityEnabled = true
+local espEnabled = true
+
+-- 🖼️ GUI
+local gui = Instance.new("ScreenGui")
+gui.Name = "GPhucHub"
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0,220,0,260)
+frame.AnchorPoint = Vector2.new(1,0)
+frame.Position = UDim2.new(1,-10,0,10)
+frame.BackgroundColor3 = Color3.fromRGB(40,40,40)
+frame.Visible = true
+frame.Parent = gui
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1,0,0,30)
+title.Text = "✨ GPhuc Hub"
+title.Font = Enum.Font.Arcade
+title.TextScaled = true
+title.TextColor3 = Color3.fromRGB(255,200,0)
+title.BackgroundTransparency = 1
+title.Parent = frame
+
+local jumpLabel = Instance.new("TextLabel")
+jumpLabel.Size = UDim2.new(0.9,0,0,25)
+jumpLabel.Position = UDim2.new(0.05,0,0,35)
+jumpLabel.Font = Enum.Font.Arcade
+jumpLabel.TextScaled = true
+jumpLabel.BackgroundColor3 = Color3.fromRGB(30,30,30)
+jumpLabel.TextColor3 = Color3.fromRGB(255,255,255)
+jumpLabel.Text = "Jump Power: "..jumpPower
+jumpLabel.Parent = frame
+
+local toggleLogo = Instance.new("TextButton")
+toggleLogo.Size = UDim2.new(0,25,0,25)
+toggleLogo.Position = UDim2.new(0.5,0,0,10)
+toggleLogo.AnchorPoint = Vector2.new(0.5,0)
+toggleLogo.BackgroundColor3 = Color3.fromRGB(255,170,0)
+toggleLogo.Text = ""
+toggleLogo.Parent = gui
+
+local menuVisible = true
+toggleLogo.MouseButton1Click:Connect(function()
+    menuVisible = not menuVisible
+    frame.Visible = menuVisible
+    toggleLogo.BackgroundColor3 = menuVisible and Color3.fromRGB(255,170,0) or Color3.fromRGB(0,0,0)
+end)
+
+local function makeBtn(text,posY,callback)
+    local b = Instance.new("TextButton")
+    b.Size = UDim2.new(0.9,0,0,25)
+    b.Position = UDim2.new(0.05,0,0,posY)
+    b.Text = text
+    b.Font = Enum.Font.Arcade
+    b.TextScaled = true
+    b.BackgroundColor3 = Color3.fromRGB(60,60,60)
+    b.TextColor3 = Color3.new(1,1,1)
+    b.Parent = frame
+    b.MouseButton1Click:Connect(callback)
+    return b
+end
+
+-- Jump
+local jumpToggle = makeBtn("Jump: ON",95,function()
+    jumpEnabled = not jumpEnabled
+    jumpToggle.Text = "Jump: "..(jumpEnabled and "ON" or "OFF")
+    if jumpEnabled then hum.UseJumpPower = true; hum.JumpPower = jumpPower else hum.JumpPower = 0 end
+end)
+
+-- Gravity
+local gravityBtn = makeBtn("Gravity: ON",135,function()
+    gravityEnabled = not gravityEnabled
+    gravityBtn.Text = "Gravity: "..(gravityEnabled and "ON" or "OFF")
+end)
+
+-- ESP
+local espBtn = makeBtn("ESP: ON",165,function()
+    espEnabled = not espEnabled
+    espBtn.Text = "ESP: "..(espEnabled and "ON" or "OFF")
+end)
+
+-- Fast Server Hop
+local function serverHop()
+    local success, response = pcall(function()
+        return game:HttpGet("https://games.roblox.com/v1/games/"..PlaceId.."/servers/Public?sortOrder=Asc&limit=100")
+    end)
+    if success and response then
+        local data = HttpService:JSONDecode(response)
+        if data and data.data then
+            for _, server in pairs(data.data) do
+                if server.id ~= game.JobId and server.playing < server.maxPlayers then
+                    TeleportService:TeleportToPlaceInstance(PlaceId, server.id, player)
+                    break
+                end
+            end
+        end
+    end
+end
+
+local serverHopBtn = makeBtn("Fast Server Hop",195,function()
+    serverHop()
+end)
+
+-- Gravity slowfall
+RS.Stepped:Connect(function()
+    if char and root and gravityEnabled then
+        if hum:GetState() == Enum.HumanoidStateType.Freefall then
+            root.Velocity = Vector3.new(root.Velocity.X, math.max(root.Velocity.Y, -10), root.Velocity.Z)
+        end
+    end
+end)
+
+-- ESP function
+local function applyESP(plr)
+    if plr ~= player then
+        local c = plr.Character or plr.CharacterAdded:Wait()
+        if not c:FindFirstChild("GPhucESP") then
+            local highlight = Instance.new("Highlight")
+            highlight.Name = "GPhucESP"
+            highlight.FillTransparency = 0.5
+            highlight.OutlineTransparency = 0
+            highlight.FillColor = Color3.fromRGB(0,255,0)
+            highlight.Parent = c
+        end
+    end
+end
+
+for _,plr in pairs(Players:GetPlayers()) do
+    if plr ~= player then applyESP(plr) end
+end
+
+Players.PlayerAdded:Connect(function(plr)
+    plr.CharacterAdded:Connect(function()
+        applyESP(plr)
+    end)
+end)
+
+-- Jump Platform
+local jumpTimer = 0
+local platformCreated = false
+
+RS.RenderStepped:Connect(function(dt)
+    if jumpEnabled then
+        local state = hum:GetState()
+        if state == Enum.HumanoidStateType.Jumping or state == Enum.HumanoidStateType.Freefall then
+            jumpTimer = jumpTimer + dt
+            if jumpTimer >= 0.5 and not platformCreated then
+                local platform = Instance.new("Part")
+                platform.Size = Vector3.new(6,0.3,6)
+                platform.Anchored = true
+                platform.CanCollide = true
+                platform.Material = Enum.Material.Neon
+                platform.Color = Color3.fromRGB(255,255,0)
+                platform.CFrame = CFrame.new(root.Position.X, root.Position.Y - 0.5, root.Position.Z)
+                platform.Parent = workspace
+
+                local tweenInfo = TweenInfo.new(30, Enum.EasingStyle.Linear)
+                local goal = {Transparency = 1}
+                local tween = TweenService:Create(platform, tweenInfo, goal)
+                tween:Play()
+
+                Debris:AddItem(platform,30)
+                platformCreated = true
+            end
+        else
+            jumpTimer = 0
+            platformCreated = false
+        end
+    end
+end)
+
+-- Respawn fix
+player.CharacterAdded:Connect(function(c)
+    char = c
+    hum = c:WaitForChild("Humanoid")
+    root = c:WaitForChild("HumanoidRootPart")
+    if jumpEnabled then hum.UseJumpPower = true; hum.JumpPower = jumpPower end
+end)
+
+-- Hotkey toggle menu
+UIS.InputBegan:Connect(function(input,gpe)
+    if not gpe and input.KeyCode == Enum.KeyCode.G then
+        frame.Visible = not frame.Visible
+        menuVisible = frame.Visible
+        toggleLogo.BackgroundColor3 = menuVisible and Color3.fromRGB(255,170,0) or Color3.fromRGB(0,0,0)
+    end
+end)
+
+-- Khởi tạo
+hum.UseJumpPower = true
+hum.JumpPower = jumpPower
+jumpLabel.Text = "Jump Power: "..jumpPower
