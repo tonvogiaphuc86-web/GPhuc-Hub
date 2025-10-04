@@ -1,0 +1,168 @@
+-- LocalScript: GPhucHub_JumpGravity_ESP.lua
+-- Đặt vào StarterPlayer -> StarterPlayerScripts
+
+local Players = game:GetService("Players")
+local RS = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+local player = Players.LocalPlayer
+local char = player.Character or player.CharacterAdded:Wait()
+local hum = char:WaitForChild("Humanoid")
+
+-- ⚙️ Config
+local jumpEnabled = true
+local jumpPower = 50
+local gravityEnabled = true   -- ✅ tự bật khi script chạy
+local espEnabled = true       -- ✅ tự bật khi script chạy
+
+-- 🖼️ GUI
+local gui = Instance.new("ScreenGui")
+gui.Name = "GPhucHub"
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0,220,0,180)
+frame.AnchorPoint = Vector2.new(1,0)
+frame.Position = UDim2.new(1,-10,0,10) -- 👉 góc phải phía trên
+frame.BackgroundColor3 = Color3.fromRGB(40,40,40)
+frame.Visible = true
+frame.Parent = gui
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1,0,0,30)
+title.Text = "✨ GPhuc Hub"
+title.Font = Enum.Font.Arcade -- gần giống Minecraft
+title.TextScaled = true
+title.TextColor3 = Color3.fromRGB(255,200,0)
+title.BackgroundTransparency = 1
+title.Parent = frame
+
+-- 🟢 Hàm tạo nút nhanh
+local function makeBtn(text,posY,callback)
+	local b = Instance.new("TextButton")
+	b.Size = UDim2.new(0.9,0,0,30)
+	b.Position = UDim2.new(0.05,0,0,posY)
+	b.Text = text
+	b.Font = Enum.Font.Arcade
+	b.TextScaled = true
+	b.BackgroundColor3 = Color3.fromRGB(60,60,60)
+	b.TextColor3 = Color3.new(1,1,1)
+	b.Parent = frame
+	b.MouseButton1Click:Connect(callback)
+	return b
+end
+
+-- Nút Jump toggle
+local jumpToggle = makeBtn("Jump: ON",40,function()
+	jumpEnabled = not jumpEnabled
+	jumpToggle.Text = "Jump: "..(jumpEnabled and "ON" or "OFF")
+	if jumpEnabled then
+		hum.UseJumpPower = true
+		hum.JumpPower = jumpPower
+	else
+		hum.JumpPower = 0
+	end
+end)
+
+-- Nút Jump +5
+local jumpP = makeBtn("Jump +5",80,function()
+	jumpPower += 5
+	if jumpEnabled then
+		hum.JumpPower = jumpPower
+	end
+end)
+
+-- Nút Jump -5
+local jumpM = makeBtn("Jump -5",115,function()
+	jumpPower = math.max(0,jumpPower-5)
+	if jumpEnabled then
+		hum.JumpPower = jumpPower
+	end
+end)
+
+-- Nút Gravity toggle
+local gravityBtn = makeBtn("Gravity: ON",150,function()
+	gravityEnabled = not gravityEnabled
+	gravityBtn.Text = "Gravity: "..(gravityEnabled and "ON" or "OFF")
+end)
+
+-- ESP toggle
+local espBtn = makeBtn("ESP: ON",185,function()
+	espEnabled = not espEnabled
+	espBtn.Text = "ESP: "..(espEnabled and "ON" or "OFF")
+end)
+
+-- 🌌 Gravity (Slowfall khi nhảy cao)
+RS.Stepped:Connect(function()
+	if char and char:FindFirstChild("HumanoidRootPart") then
+		local hrp = char:FindFirstChild("HumanoidRootPart")
+		if gravityEnabled then
+			-- Nếu đang rơi (Freefall), giảm tốc độ rơi lại để nhảy cao mà rơi chậm
+			if hum:GetState() == Enum.HumanoidStateType.Freefall then
+				-- giữ tốc độ rơi tối đa -10 thay vì rớt nhanh -100
+				hrp.Velocity = Vector3.new(
+					hrp.Velocity.X,
+					math.max(hrp.Velocity.Y, -10),
+					hrp.Velocity.Z
+				)
+			end
+		end
+	end
+end)
+
+-- 🌌 ESP Player
+local function applyESP(plr)
+	if plr ~= player then
+		local char = plr.Character or plr.CharacterAdded:Wait()
+		local highlight = Instance.new("Highlight")
+		highlight.Name = "GPhucESP"
+		highlight.FillTransparency = 0.5
+		highlight.OutlineTransparency = 0
+		highlight.FillColor = Color3.fromRGB(0,255,0)
+		highlight.Parent = char
+	end
+end
+
+for _,plr in pairs(Players:GetPlayers()) do
+	if plr ~= player then
+		applyESP(plr)
+	end
+end
+
+Players.PlayerAdded:Connect(function(plr)
+	plr.CharacterAdded:Connect(function()
+		applyESP(plr)
+	end)
+end)
+
+RS.RenderStepped:Connect(function()
+	for _,plr in pairs(Players:GetPlayers()) do
+		if plr ~= player and plr.Character then
+			local hl = plr.Character:FindFirstChild("GPhucESP")
+			if espEnabled then
+				if not hl then applyESP(plr) end
+			else
+				if hl then hl:Destroy() end
+			end
+		end
+	end
+end)
+
+player.CharacterAdded:Connect(function(c)
+	char = c
+	hum = c:WaitForChild("Humanoid")
+	if jumpEnabled then
+		hum.UseJumpPower = true
+		hum.JumpPower = jumpPower
+	end
+end)
+
+UIS.InputBegan:Connect(function(input, gpe)
+	if not gpe and input.KeyCode == Enum.KeyCode.G then
+		frame.Visible = not frame.Visible
+	end
+end)
+
+-- Khởi tạo
+hum.UseJumpPower = true
+hum.JumpPower = jumpPower
